@@ -12,34 +12,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-// class BookingController extends Controller
-// {
-//     public function slots(Request $request)
-//     {
-//         $date = CarbonImmutable::parse(
-//             $request->query('date')
-//         );
-
-//         return response()->json(
-//             $availabilityService
-//                 ->getAvailableSlots($date)
-//         );
-//     }
-
-//     public function store(StoreBookingRequest $request)
-//     {
-//     }
-
-//     public function cancel(Booking $booking)
-//     {
-//         $booking->update([
-//             'status' => BookingStatus::CANCELLED
-//         ]);
-
-//         return response()->noContent();
-//     }
-// }
-
 class BookingController extends Controller
 {
     public function __construct(
