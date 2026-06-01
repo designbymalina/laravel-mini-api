@@ -1,215 +1,229 @@
-# Pokemon Info Service
+# Media Expert - Booking API
 
-Serwis HTTP (REST) umożliwiający pobieranie informacji o Pokemonach z PokeAPI (https://pokeapi.co/) oraz rozszerzony o dodatkowe funkcje:
+## Opis
 
-- zarządzanie listą zakazanych Pokemonów (/api/banned) - chronione nagłówkiem X-SUPER-SECRET-KEY,
-- pobieranie informacji o wielu Pokemonach naraz (/api/info) z pominięciem zakazanych,
-- zarządzanie własnymi (niestandardowymi) Pokemonami (/api/custom-pokemons) - CRUD,
-- cacheowanie odpowiedzi PokeAPI do najbliższej godziny 12:00 UTC+1.
+Prosty backendowy system rezerwacji terminów przygotowany w framework Laravel.
 
-## Wymagania środowiskowe
+System udostępnia REST API umożliwiające:
 
-- PHP 8.2+
-- Composer
-- MySQL / PostgreSQL
-- Redis (zalecany do cache)
-- Laravel 10+
-- Opcjonalnie: Docker + Docker Compose (zalecane)
+* pobieranie dostępnych slotów dla wybranego dnia,
+* tworzenie rezerwacji,
+* anulowanie rezerwacji.
 
+Założenia biznesowe:
 
-## Instalacja i uruchomienie
+* slot trwa 30 minut,
+* system działa w strefie czasowej Europe/Warsaw,
+* poniedziałek–piątek: 09:00–17:00,
+* sobota: 10:00–14:20,
+* niedziela: dzień wolny,
+* dni wolne są przechowywane w tabeli `holidays`,
+* anulowana rezerwacja nie blokuje slotu,
+* nie można utworzyć dwóch aktywnych rezerwacji dla tego samego slotu,
+* system obsługuje jedną lokalizację.
 
-Opcja A - lokalnie
+---
 
-Pobierz repozytorium:
+## Wymagania
 
-```bash
-git clone <repo>
-cd repo
-```
+* PHP 8.3+
+* MariaDB / MySQL
+* Composer
 
-Zainstaluj zależności:
+Rozwiązanie zostało przygotowane na istniejącej instalacji Laravel 11 z PHP 8.2 oraz MariaDB 10.11.  
+Kod nie wykorzystuje funkcjonalności specyficznych dla PHP 8.2 i pozostaje kompatybilny z PHP 8.3.
+
+---
+
+## Uruchomienie
+
+Instalacja zależności:
 
 ```bash
 composer install
 ```
 
-Skopiuj konfigurację:
+Konfiguracja środowiska:
 
 ```bash
 cp .env.example .env
+```
+
+Generowanie klucza aplikacji:
+
+```bash
 php artisan key:generate
 ```
 
-W pliku .env ustaw:
-
-```bash
-DB_* wartości
-CACHE_DRIVER=redis (lub database)
-SUPER_SECRET_KEY=twojsekretnyklucz
-POKEAPI_BASE_URL=https://pokeapi.co/api/v2
-```
-
-Uruchom migracje:
+Uruchomienie migracji:
 
 ```bash
 php artisan migrate
 ```
 
-Start aplikacji:
+Uruchomienie aplikacji:
 
 ```bash
 php artisan serve
 ```
 
-Aplikacja dostępna pod: http://127.0.0.1:8000
+lub przy użyciu Dockera/Sail zgodnie z konfiguracją środowiska.
 
-Opcja B - Docker
+---
 
-```bash
-docker compose up -d
-docker exec -it laravel_app php artisan migrate
+## Endpointy
+
+### Pobranie dostępnych slotów
+
+```http
+GET /api/slots?date=2026-06-08
 ```
 
-## Autoryzacja
+Przykładowa odpowiedź:
 
-Wybrane endpointy wymagają nagłówka:
-
-```bash
-X-SUPER-SECRET-KEY: <wartość z .env>
-```
-
-Chronione ścieżki:
-- /api/banned/*
-- /api/custom-pokemons/*
-
-Brak lub błędna wartość → 401 Unauthorized.
-
-## Dokumentacja API (Swagger/OpenAPI)
-
-Dostępna pod adresem:
-
-```bash
-/api/docs
-```
-
-Plik OpenAPI znajduje się w:
-
-```bash
-public/docs/openapi.yaml
-```
-
-SwaggerUI jest wczytywany automatycznie i pokazuje wszystkie kontrakty API.
-
-## Endpointy API
-
-1. Rejestr Zakazanych Pokemonów (/api/banned) (chronione nagłówkiem)
-
-**GET /api/banned**
-
-Zwraca listę zakazanych Pokemonów.
-
-Response 200
-
-```bash
+```json
 [
-  {"id":1,"name":"mewtwo","created_at":"...","updated_at":"..."}
+    {
+        "start": "2026-06-08T09:00:00+02:00",
+        "end": "2026-06-08T09:30:00+02:00"
+    }
 ]
 ```
 
-**POST /api/banned**
+---
 
-Body:
+### Utworzenie rezerwacji
 
-```bash
-{"name":"mewtwo"}
+```http
+POST /api/bookings
 ```
 
-Response 201 - created
+Przykładowe dane:
 
-Zwraca utworzony obiekt.
-
-**DELETE /api/banned/{name}**
-
-Response 204 No Content
-
-2. Pobieranie informacji — /api/info
-
-**POST /api/info**
-
-Body:
-
-```bash
-{"names": ["pikachu", "mewtwo", "my-custom"]}
-```
-
-Response 200:
-
-```bash
+```json
 {
-  "requested": ["pikachu", "mewtwo", "my-custom"],
-  "banned": ["mewtwo"],
-  "results": [
-    {"name": "pikachu", "source": "official", "data": { ... }, "found": true},
-    {"name": "my-custom", "source": "custom", "data": { ... }}
-  ]
+    "customer_name": "Jan Kowalski",
+    "customer_email": "jan@example.com",
+    "slot_start": "2026-06-08T09:00:00+02:00"
 }
 ```
 
-3. Własne Pokemony (/api/custom-pokemons) (chronione nagłówkiem)
+---
 
-**GET /api/custom-pokemons**
+### Anulowanie rezerwacji
 
-Zwraca listę własnych Pokemonów.
-
-**POST /api/custom-pokemons**
-
-Body:
-```bash
-{
-  "name": "my-mon",
-  "data": {"level": 10, "abilities": ["fly"]},
-  "created_by": "admin",
-  "notes": "fan-made"
-}
+```http
+DELETE /api/bookings/{booking}
 ```
 
-Walidacja:
+---
 
-- nazwa musi być unikatowa
-- nie może duplikować nazwy z PokeAPI
+## Testy
 
-Cache silnika PokeAPI
+Uruchomienie wszystkich testów:
 
-- Cache oparty na CACHE_DRIVER (Redis / database / file)
-- Każdy Pokemon ma TTL ustawiony tak, aby wygasł:
+```bash
+php artisan test --env=testing
+```
 
-przy najbliższym 12:00 (UTC+1)
+Zaimplementowane testy:
 
-Dzięki temu odświeżanie PokeAPI raz dziennie powoduje automatyczne wygasanie danych.
+* returns no slots on sunday
+* returns no slots on holiday
+* returns saturday slots that fit working hours
+* creates booking
+* cannot create two active bookings for same slot
+* cannot book outside working hours
+* cancelled booking releases slot
 
-## Cache
+---
 
-Cache jest przechowywany w driverze wskazanym w CACHE_DRIVER (zalecany Redis). Dla oficjalnych pokemonów TTL ustawione jest tak, żeby klucz wygasł przy najbliższym 12:00 (UTC+1). Dzięki temu codzienna aktualizacja PokeAPI powoduje odświeżenie po czasie.
+## Założenia projektowe
 
-### Testy i dalsze kroki
+Dostępne sloty są wyliczane dynamicznie na podstawie godzin pracy oraz aktywnych rezerwacji zapisanych w bazie danych.
 
-- Dodać testy integracyjne (Feature tests) dla endpointów.  
-- Obsługa limitów rate-limit PokeAPI (retry/backoff).  
-- Ulepszyć paginację i filtrowanie /banned i /custom-pokemons.  
+Nie są przechowywane gotowe sloty w osobnej tabeli.
 
-PokeApiService - komunikacja z PokeAPI + cache
-Repositories - logika dla custom Pokemonów
-Middleware - weryfikacja X-SUPER-SECRET-KEY
+Takie podejście eliminuje konieczność utrzymywania dużej liczby rekordów i upraszcza zarządzanie kalendarzem.
 
-### Uwagi implementacyjne / wskazówki
+Dni wolne są przechowywane w tabeli `holidays` i mogą być dodawane przez migracje, seeder lub prosty panel administracyjny.
 
-- Wszystkie nazwy pokemonów są normalizowane do lowercase (łatwiej porównywać).  
-- TTL cache jest wyliczane tak, by wygasło przy następnym 12:00 w strefie UTC+1 (ogarnięte w PokeApiService::ttlSeconds).  
-- Użyłem Http::get() z Laravel. Nie wrappery PokeAPI (zgodnie z wymaganiem).  
-- Można zmienić CACHE_DRIVER w .env na database jeśli nie chcemy Redis - wówczas wykonać php artisan cache:table i migracje.  
-- W celu lepszej produkcyjnej jakości: dodać rate-limiting, retry/backoff, logowanie odpowiedzi PokeAPI w wypadku błędów.  
+---
 
-## Licencja
+## Odporność na równoległe rezerwacje
 
-Projekt udostępniony na licencji MIT.  
+System wykorzystuje:
+
+* unikalny indeks bazy danych,
+* transakcję podczas tworzenia rezerwacji,
+* obsługę błędów naruszenia ograniczeń unikalności.
+
+Dzięki temu nawet przy równoległych żądaniach tylko jedna aktywna rezerwacja może zostać utworzona dla danego slotu.
+
+---
+
+## Indeksy
+
+Tabela `bookings`:
+
+```sql
+INDEX(slot_start)
+INDEX(status)
+
+UNIQUE(slot_start, status)
+```
+
+### Uzasadnienie
+
+`slot_start`
+
+Przyspiesza wyszukiwanie rezerwacji dla konkretnego dnia podczas generowania dostępnych slotów.
+
+`status`
+
+Przyspiesza filtrowanie aktywnych rezerwacji.
+
+`UNIQUE(slot_start, status)`
+
+Zapobiega utworzeniu dwóch aktywnych rezerwacji dla tego samego terminu.
+
+W PostgreSQL zastosowałbym częściowy indeks unikalny:
+
+```sql
+UNIQUE(slot_start)
+WHERE status = 'active'
+```
+
+MariaDB nie wspiera tego mechanizmu, dlatego wykorzystano unikalność `(slot_start, status)`.
+
+---
+
+## Skalowanie i wydajność
+
+Przy setkach tysięcy rezerwacji kluczowe znaczenie ma indeksowanie.
+
+Podczas pobierania dostępnych slotów wykonywane jest pojedyncze zapytanie pobierające wyłącznie aktywne rezerwacje dla konkretnego dnia.
+
+Dzięki indeksowi na `slot_start` liczba rekordów analizowanych przez bazę pozostaje ograniczona niezależnie od całkowitej liczby rezerwacji w systemie.
+
+W kolejnych iteracjach można rozważyć:
+
+* partycjonowanie tabel po dacie,
+* cache dla najczęściej odczytywanych dni,
+* osobny model lokalizacji,
+* mechanizm przesuwania rezerwacji,
+* paginowaną listę rezerwacji,
+* API administracyjne do zarządzania dniami wolnymi.
+
+---
+
+## Co zmieniłbym w kolejnej iteracji
+
+* pełna obsługa wielu lokalizacji,
+* endpoint zmiany terminu rezerwacji,
+* dedykowane DTO oraz warstwa API Resources,
+* obsługa wyjątków biznesowych przez własne klasy domenowe,
+* OpenAPI / Swagger,
+* cache dla odczytu dostępności,
+* monitoring i metryki aplikacyjne,
+* pełna konfiguracja Docker Compose dla środowiska developerskiego.

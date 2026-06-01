@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BannedPokemonController;
+use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CustomPokemonController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -37,3 +38,11 @@ Route::middleware('auth.secret')->group(function () {
 
 // Public info route (no secret key required)
 Route::post('/info', [PokemonInfoController::class, 'info']);
+
+// ===== Media Expert =====
+
+Route::get('/slots', [BookingController::class, 'slots']);
+
+Route::post('/bookings', [BookingController::class, 'store']);
+
+Route::delete('/bookings/{booking}', [BookingController::class, 'cancel']);
