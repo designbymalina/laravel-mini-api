@@ -7,11 +7,17 @@ namespace App\Services;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Holiday;
+use App\Support\WorkingHoursProvider;
 use Carbon\CarbonImmutable;
 
 class AvailabilityService
 {
     private const SLOT_DURATION = 30;
+
+    public function __construct(
+        private readonly WorkingHoursProvider $workingHoursProvider,
+    ) {
+    }
 
     /**
      * @return array<int, array{
@@ -29,7 +35,7 @@ class AvailabilityService
             return [];
         }
 
-        $hours = $this->workingHours($date);
+        $hours = $this->workingHoursProvider->workingHours($date);
 
         if ($hours === null) {
             return [];
@@ -47,8 +53,11 @@ class AvailabilityService
             'Europe/Warsaw'
         );
 
+        $startOfDay = $date->startOfDay();
+        $endOfDay = $date->endOfDay();
+
         $bookedSlots = Booking::query()
-            ->whereDate('slot_start', $date->toDateString())
+            ->whereBetween('slot_start', [$startOfDay, $endOfDay])
             ->where('status', BookingStatus::ACTIVE->value)
             ->pluck('slot_start')
             ->map(
@@ -83,27 +92,5 @@ class AvailabilityService
         }
 
         return $slots;
-    }
-
-    /**
-     * @return array{0:string,1:string}|null
-     */
-    private function workingHours(CarbonImmutable $date): ?array
-    {
-        if ($date->isSunday()) {
-            return null;
-        }
-
-        if ($date->isSaturday()) {
-            return [
-                '10:00',
-                '14:20'
-            ];
-        }
-
-        return [
-            '09:00',
-            '17:00'
-        ];
     }
 }

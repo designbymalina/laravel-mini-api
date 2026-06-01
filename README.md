@@ -194,7 +194,9 @@ UNIQUE(slot_start)
 WHERE status = 'active'
 ```
 
-MariaDB nie wspiera tego mechanizmu, dlatego wykorzystano unikalność `(slot_start, status)`.
+MariaDB nie wspiera częściowych indeksów, dlatego wykorzystano uproszczenie w postaci unikalności `(slot_start, status)`.
+
+W rozwiązaniu produkcyjnym zastosowałbym dodatkową kolumnę techniczną lub inną strategię indeksowania pozwalającą utrzymać ograniczenie wyłącznie dla aktywnych rezerwacji.
 
 ---
 

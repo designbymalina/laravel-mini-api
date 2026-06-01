@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Holiday;
+use App\Support\WorkingHoursProvider;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,11 @@ use Illuminate\Validation\ValidationException;
 
 class BookingService
 {
+    public function __construct(
+        private readonly WorkingHoursProvider $workingHoursProvider,
+    ) {
+    }
+
     public function create(string $name, string $email, CarbonImmutable $slotStart): Booking
     {
         $this->assertSlotCanBeBooked($slotStart);
@@ -46,6 +52,10 @@ class BookingService
 
             return $booking;
         } catch (QueryException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+
             throw ValidationException::withMessages([
                 'slot' => [
                     'Slot already booked.'
@@ -78,7 +88,7 @@ class BookingService
             ]);
         }
 
-        $hours = $this->workingHours($slotStart);
+        $hours = $this->workingHoursProvider->workingHours($slotStart);
 
         if ($hours === null) {
             throw ValidationException::withMessages([
@@ -112,21 +122,5 @@ class BookingService
                 ]
             ]);
         }
-    }
-
-    /**
-     * @return array{0:string,1:string}|null
-     */
-    private function workingHours(CarbonImmutable $date): ?array
-    {
-        if ($date->isSunday()) {
-            return null;
-        }
-
-        if ($date->isSaturday()) {
-            return ['10:00', '14:20'];
-        }
-
-        return ['09:00', '17:00'];
     }
 }
